@@ -88,7 +88,6 @@ namespace PvPKit
 
         public static void ModifyPrefabs()
         {
-            Entity prefabEntity;
             var world = GetWorld("Server");
             if (world == null)
             {
@@ -125,63 +124,37 @@ namespace PvPKit
             Logger?.LogInfo("Items that will be made infinite:");
             foreach (var item in itemsToMakeInfinite)
             {
-                Logger?.LogInfo($"  - {item.name} (GUID: {item.guid})");
+                Logger?.LogInfo($"- {item.name} (GUID: {item.guid})");
             }
 
-            // Try to modify each item
+            // Process each item
             foreach (var itemInfo in itemsToMakeInfinite)
             {
                 try
                 {
-                    var guid = itemInfo.guid;
+                    var itemGuid = itemInfo.guid;
                     var itemName = itemInfo.name;
-                    
-                    // Get the prefab entity directly from PrefabCollectionSystem
-                    bool foundEntity = prefabCollectionSystem._PrefabGuidToEntityMap.TryGetValue(guid, out prefabEntity);
-                    
-                    if (foundEntity && prefabEntity != Entity.Null)
+
+                    // Try to get the prefab entity
+                    if (prefabCollectionSystem._PrefabGuidToEntityMap.TryGetValue(itemGuid, out var prefabEntity))
                     {
-                        Logger?.LogInfo($"Found prefab entity for {itemName} (GUID: {guid})");
-                        
-                        // Check if it has ItemData component
+                        // First ensure the item doesn't get consumed
                         if (entityManager.HasComponent<ItemData>(prefabEntity))
                         {
-                            // Get current ItemData
                             var itemData = entityManager.GetComponentData<ItemData>(prefabEntity);
-                            
-                            // Log the current setting
-                            Logger?.LogInfo($"{itemName} (GUID: {guid}) - Current RemoveOnConsume value: {itemData.RemoveOnConsume}");
-                            
-                            // Modify it to be infinite
                             itemData.RemoveOnConsume = false;
-                            entityManager.SetComponentData<ItemData>(prefabEntity, itemData);
-                            
-                            // Also try to disable empty containers
-                            DisableEmptyContainer(entityManager, prefabEntity);
-                            
-                            // Verify the change was applied
-                            var verifiedItemData = entityManager.GetComponentData<ItemData>(prefabEntity);
-                            if (verifiedItemData.RemoveOnConsume == false)
-                            {
-                                modifiedItemsCount++;
-                                Logger?.LogInfo($"✅ Successfully made {itemName} (GUID: {guid}) infinite!");
-                            }
-                            else
-                            {
-                                failedItemsCount++;
-                                Logger?.LogError($"Failed to make {itemName} (GUID: {guid}) infinite. Value did not persist.");
-                            }
+                            entityManager.SetComponentData(prefabEntity, itemData);
+                            Logger?.LogInfo($"✅ Made {itemName} infinite");
+                            modifiedItemsCount++;
                         }
-                        else
-                        {
-                            failedItemsCount++;
-                            Logger?.LogError($"{itemName} (GUID: {guid}) doesn't have ItemData component!");
-                        }
+
+                        // Disable empty container generation
+                        DisableEmptyContainer(entityManager, prefabEntity);
                     }
                     else
                     {
                         failedItemsCount++;
-                        Logger?.LogError($"Could not find entity for {itemName} (GUID: {guid})");
+                        Logger?.LogError($"Could not find entity for {itemName} (GUID: {itemGuid})");
                     }
                 }
                 catch (Exception ex)
@@ -190,8 +163,8 @@ namespace PvPKit
                     Logger?.LogError($"Error processing {itemInfo.name} (GUID: {itemInfo.guid}): {ex.Message}");
                 }
             }
-            
-            // NEW PART: Clear the drop table data to prevent empty containers
+
+            // Clear the drop table data to prevent empty containers
             Logger?.LogInfo("🍶 Clearing drop table data to prevent empty containers...");
             
             List<(PrefabGUID guid, string name)> dropTableDataToClear = new List<(PrefabGUID, string)>
@@ -202,57 +175,37 @@ namespace PvPKit
             
             foreach (var dropTableInfo in dropTableDataToClear)
             {
-                try 
+                try
                 {
-                    var guid = dropTableInfo.guid;
-                    var name = dropTableInfo.name;
-                    
-                    Logger?.LogInfo($"Looking for drop table data: {name} (GUID: {guid})");
-                    
-                    bool foundEntity = prefabCollectionSystem._PrefabGuidToEntityMap.TryGetValue(guid, out prefabEntity);
-                    if (foundEntity && prefabEntity != Entity.Null)
+                    if (prefabCollectionSystem._PrefabGuidToEntityMap.TryGetValue(dropTableInfo.guid, out var dropTableEntity))
                     {
-                        Logger?.LogInfo($"Found drop table entity: {name}");
-                        
-                        // Check if it has DropTableDataBuffer component
-                        if (entityManager.HasComponent<DropTableDataBuffer>(prefabEntity))
+                        // Try to clear the drop table data
+                        if (entityManager.HasComponent<DropTableDataBuffer>(dropTableEntity))
                         {
-                            // Get and clear the buffer
-                            var buffer = entityManager.GetBuffer<DropTableDataBuffer>(prefabEntity);
-                            Logger?.LogInfo($"Found drop table buffer with {buffer.Length} entries");
-                            buffer.Clear();
-                            Logger?.LogInfo($"✅ Successfully cleared drop table buffer for {name}!");
+                            var dropTableData = entityManager.GetBuffer<DropTableDataBuffer>(dropTableEntity);
+                            dropTableData.Clear();
+                            Logger?.LogInfo($"✅ Cleared drop table data for {dropTableInfo.name}");
                         }
-                        else
-                        {
-                            Logger?.LogWarning($"Entity {name} doesn't have DropTableDataBuffer component");
-                        }
-                    }
-                    else
-                    {
-                        Logger?.LogWarning($"Could not find drop table entity for {name}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logger?.LogError($"Error clearing drop table data: {ex.Message}");
+                    Logger?.LogError($"Error clearing drop table data for {dropTableInfo.name}: {ex.Message}");
                 }
             }
-            
-            // NEW PART: Remove consume item on cast
-            Logger?.LogInfo("Removing consume item on cast from abilities...");
-            
-            HashSet<PrefabGUID> consumableAbilitiesToModify = new HashSet<PrefabGUID>
-            {
-                new PrefabGUID(-1568756102), // Physical Power Potion
-                new PrefabGUID(1510182325),  // Spell Power Potion
-                new PrefabGUID(-2102469163), // Vampiric Brew
-                new PrefabGUID(800879747),   // Blood Rose Brew
-                new PrefabGUID(-1885959251)  // Vermin Salve
-            };
-            
+
+            // Remove consume on cast from abilities
             try
             {
+                HashSet<PrefabGUID> consumableAbilitiesToModify = new HashSet<PrefabGUID>
+                {
+                    new PrefabGUID(-1568756102), // Physical Power Potion
+                    new PrefabGUID(1510182325),  // Spell Power Potion
+                    new PrefabGUID(-2102469163), // Vampiric Brew
+                    new PrefabGUID(800879747),   // Blood Rose Brew
+                    new PrefabGUID(-1885959251)  // Vermin Salve
+                };
+                
                 var entities = GetPrefabEntitiesByComponentTypes<AbilityGroupConsumeItemOnCast>();
                 int abilitiesModified = 0;
                 
@@ -287,16 +240,15 @@ namespace PvPKit
             {
                 Logger?.LogError($"Error modifying abilities: {ex.Message}");
             }
-            
+
             // Handle success or failure
             if (modifiedItemsCount > 0)
             {
-                Logger?.LogInfo($"❗ Successfully made {modifiedItemsCount} items infinite! Failed: {failedItemsCount}");
-                _hasPrefabsBeenModified = true;
+                Logger?.LogInfo($"✅ Successfully modified {modifiedItemsCount} items to be infinite");
             }
-            else
+            if (failedItemsCount > 0)
             {
-                Logger?.LogError($"❌ Failed to make any items infinite. Total failures: {failedItemsCount}");
+                Logger?.LogError($"❌ Failed to modify {failedItemsCount} items");
             }
         }
 
@@ -593,53 +545,27 @@ namespace PvPKit
                         // Also look for DropTableData component - this is what creates the empty containers
                         if (typeName.Contains("DropTableData") || typeName.Contains("DropTable"))
                         {
-                            Logger?.LogInfo($"🔍 Found DropTableData component on entity {entity}");
+                            Logger?.LogInfo($"Found DropTableData component on entity {entity}");
                             
                             try
                             {
-                                // Try to remove the drop table completely
-                                entityManager.RemoveComponent(entity, componentType);
-                                Logger?.LogInfo($"✅ Successfully removed DropTableData component from entity {entity}");
+                                // Try to clear the drop table data
+                                if (typeName.Contains("Buffer"))
+                                {
+                                    var buffer = entityManager.GetBuffer<DropTableDataBuffer>(entity);
+                                    buffer.Clear();
+                                    Logger?.LogInfo($"✅ Cleared DropTableDataBuffer on entity {entity}");
+                                }
+                                else
+                                {
+                                    // Try to remove the component if it's not a buffer
+                                    entityManager.RemoveComponent(entity, componentType);
+                                    Logger?.LogInfo($"✅ Removed DropTableData component from entity {entity}");
+                                }
                             }
-                            catch (Exception ex)
+                            catch (Exception innerEx)
                             {
-                                Logger?.LogWarning($"Couldn't remove DropTableData component: {ex.Message}");
-                                
-                                // If we can't remove it, try to find drop tables to clear
-                                try
-                                {
-                                    // The key is to look for components with "dropTableDataToClear" field
-                                    Logger?.LogInfo("Trying to find and clear dropTableDataToClear field...");
-                                    
-                                    // We can't directly reference EmptyContainerAfterUse type
-                                    // Try a more generic approach using dynamic component access
-                                    foreach (var ct in entityManager.GetComponentTypes(entity))
-                                    {
-                                        string ctName = ct.ToString();
-                                        if (ctName.Contains("Empty") && ctName.Contains("Container"))
-                                        {
-                                            Logger?.LogInfo($"Found component {ctName} to try clearing");
-                                            
-                                            // We can't directly modify the component, but we can try to remove it again
-                                            try
-                                            {
-                                                entityManager.RemoveComponent(entity, ct);
-                                                Logger?.LogInfo($"Successfully removed {ctName} component");
-                                            }
-                                            catch
-                                            {
-                                                Logger?.LogWarning($"Could not remove {ctName} component");
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Log that we're using the fallback approach since we can't directly access the component
-                                    Logger?.LogInfo("Using fallback approach: ensuring item remains infinite");
-                                }
-                                catch (Exception innerEx)
-                                {
-                                    Logger?.LogError($"Error modifying component data: {innerEx.Message}");
-                                }
+                                Logger?.LogError($"Error modifying component data: {innerEx.Message}");
                             }
                         }
                     }
