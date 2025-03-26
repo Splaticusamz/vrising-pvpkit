@@ -1,0 +1,10 @@
+{
+  "name": "DraculaKit",
+  "version_number": "0.1.0",
+  "website_url": "https://github.com/YourUsername/DraculaKit",
+  "description": "Server side only mod that gives the complete Dracula Set with all weapons and accessories to any player who uses the .kit command.",
+  "dependencies": [
+    "BepInEx-BepInExPack_V_Rising-1.691.3",
+    "deca-VampireCommandFramework-0.9.0"
+  ]
+}

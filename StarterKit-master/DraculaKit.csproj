@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>DraculaKit</AssemblyName>
+    <Description>A mod that gives the Dracula Set to any player who uses the .kit command</Description>
+    <Version>0.1.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <RestoreAdditionalProjectSources>
+      https://api.nuget.org/v3/index.json;
+      https://nuget.bepinex.dev/v3/index.json;
+      https://nuget.samboy.dev/v3/index.json
+    </RestoreAdditionalProjectSources>
+    <RootNamespace>StarterKit</RootNamespace>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Thunderstore\**" />
+    <EmbeddedResource Remove="Thunderstore\**" />
+    <None Remove="Thunderstore\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.691" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.691" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
+    <PackageReference Include="VRising.Unhollowed.Client" Version="1.0.5.802790001" />
+    <PackageReference Include="VRising.VampireCommandFramework" Version="0.9.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(MSBuildThisFileDirectory)libs/**/*.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyDLLs" AfterTargets="Build">
+    <Message Text="DLL to local output" Importance="High" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).dll" DestinationFolder="$(MSBuildThisFileDirectory)output" />
+  </Target>
+</Project>
