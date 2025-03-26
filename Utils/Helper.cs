@@ -1,7 +1,7 @@
 ﻿using ProjectM;
 using ProjectM.Network;
 using ProjectM.Scripting;
-using StarterKit.Database;
+using PvPKit.Database;
 using Stunlock.Core;
 using System;
 using System.Collections.Generic;
@@ -10,7 +10,7 @@ using UnityEngine;
 using VampireCommandFramework;
 using ProjectM.CastleBuilding;
 
-namespace StarterKit.Utils
+namespace PvPKit.Utils
 {
     internal class Helper
     {

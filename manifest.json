@@ -1,10 +1,10 @@
 {
-  "name": "DraculaKit",
+  "name": "PvPKit",
   "version_number": "0.1.0",
-  "website_url": "https://github.com/YourUsername/DraculaKit",
-  "description": "Server side only mod that gives the complete Dracula Set with all weapons and accessories to any player who uses the .kit command.",
+  "website_url": "https://github.com/YourUsername/PvPKit",
+  "description": "A mod that gives the Dracula Set to any player who uses the .kit command",
   "dependencies": [
-    "BepInEx-BepInExPack_V_Rising-1.691.3",
-    "deca-VampireCommandFramework-0.9.0"
+    "BepInEx-BepInExPack-5.4.2100",
+    "deca-Bloodstone-0.1.4"
   ]
 }

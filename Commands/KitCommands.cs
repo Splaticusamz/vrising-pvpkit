@@ -1,5 +1,5 @@
-﻿using StarterKit.Database;
-using StarterKit.Utils;
+﻿using PvPKit.Database;
+using PvPKit.Utils;
 using System.Collections.Generic;
 using VampireCommandFramework;
 using Stunlock.Core;
@@ -8,7 +8,7 @@ using System;
 using ProjectM;
 using System.Linq;
 
-namespace StarterKit.Commands
+namespace PvPKit.Commands
 {
     internal class KitCommands
     {
@@ -46,7 +46,7 @@ namespace StarterKit.Commands
             }
         }
 
-        [Command("kit", description: "Give basic weapons, consumables, and equipment to the player.", adminOnly: false)]
+        [Command("pvpkit", description: "Give basic weapons, consumables, and equipment to the player.", adminOnly: false)]
         public static void KitCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -217,7 +217,7 @@ namespace StarterKit.Commands
             }
         }
 
-        [Command("kit-rogue", description: "Give Dracula Rogue armor set to the player.", adminOnly: false)]
+        [Command("pvpkit rogue", description: "Give Dracula Rogue armor set to the player.", adminOnly: false)]
         public static void KitRogueCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -275,7 +275,7 @@ namespace StarterKit.Commands
             }
         }
 
-        [Command("kit-warrior", description: "Give Dracula Warrior armor set to the player.", adminOnly: false)]
+        [Command("pvpkit warrior", description: "Give Dracula Warrior armor set to the player.", adminOnly: false)]
         public static void KitWarriorCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -333,7 +333,7 @@ namespace StarterKit.Commands
             }
         }
         
-        [Command("kit-sorcerer", description: "Give Dracula Scholar armor set to the player.", adminOnly: false)]
+        [Command("pvpkit sorcerer", description: "Give Dracula Scholar armor set to the player.", adminOnly: false)]
         public static void KitSorcererCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -391,7 +391,7 @@ namespace StarterKit.Commands
             }
         }
         
-        [Command("kit-brute", description: "Give Dracula Brute armor set to the player.", adminOnly: false)]
+        [Command("pvpkit brute", description: "Give Dracula Brute armor set to the player.", adminOnly: false)]
         public static void KitBruteCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -431,8 +431,8 @@ namespace StarterKit.Commands
                     if (added.Count > 0)
                     {
                         ctx.Reply($"<color=#ffffffff>Added Dracula Brute set to your inventory.</color>");
-                }
-                else
+                    }
+                    else
                     {
                         ctx.Reply($"<color=#ff0000>Failed to add Brute set. Please use .dumpitems for debug info.</color>");
                     }

@@ -1,27 +1,20 @@
 ﻿using BepInEx.Configuration;
-using StarterKit.Database;
+using PvPKit.Database;
 using System.IO;
 
-namespace StarterKit.Configs
+namespace PvPKit.Configs
 {
-    internal class MainConfig
+    public class MainConfig
     {
-        private static readonly string FileDirectory = Path.Combine("BepInEx", "config");
-        private static readonly string FileName = "DraculaKit.cfg";
-        private static readonly string fullPath = Path.Combine(FileDirectory, FileName);
-        private static readonly ConfigFile Conf = new ConfigFile(fullPath, true);
+        private static ConfigFile Conf;
+        private static readonly string FileName = "PvPKit.cfg";
 
-        public static ConfigEntry<bool> EnabledKitCommand;
+        public static bool EnabledKitCommand { get; private set; }
 
-        public static void ConfigInit()
+        public static void Initialize()
         {
-            EnabledKitCommand = Conf.Bind("DraculaKit", "EnableKitCommand", true, "Enable kit command that gives Dracula Set.");
-
-            ConfigBind();
-        }
-        public static void ConfigBind()
-        {
-            DB.EnabledKitCommand = EnabledKitCommand.Value;
+            Conf = new ConfigFile(Path.Combine(Paths.ConfigPath, FileName), true);
+            EnabledKitCommand = Conf.Bind("PvPKit", "EnableKitCommand", true, "Enable kit command that gives Dracula Set.");
         }
     }
 }

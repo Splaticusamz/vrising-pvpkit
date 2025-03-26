@@ -2,8 +2,8 @@
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
-using StarterKit.Configs;
-using StarterKit.Database;
+using PvPKit.Configs;
+using PvPKit.Database;
 using VampireCommandFramework;
 using System.Reflection;
 using Unity.Collections;
@@ -16,10 +16,11 @@ using System.Collections.Generic;
 using Il2CppInterop.Runtime;
 using System;
 
-namespace StarterKit
+namespace PvPKit
 {
     [BepInPlugin(MyPluginInfo.PLUGIN_GUID, MyPluginInfo.PLUGIN_NAME, MyPluginInfo.PLUGIN_VERSION)]
     [BepInDependency("gg.deca.VampireCommandFramework")]
+    [BepInDependency("gg.deca.Bloodstone")]
     public class Plugin : BasePlugin
     {
         private Harmony? _harmony;
@@ -821,7 +822,7 @@ namespace StarterKit
                 if (_timer < CHECK_INTERVAL) return;
                 _timer = 0f;
                 
-                // Ensure our draculakit consumables always stay infinite
+                // Ensure our pvpkit consumables always stay infinite
                 EnsureConsumablesInfinite();
                 
                 // Look for and delete empty containers

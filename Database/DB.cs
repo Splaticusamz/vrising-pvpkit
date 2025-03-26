@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 
-namespace StarterKit.Database
+namespace PvPKit.Database
 {
     internal struct RecordKit
     {
@@ -10,16 +10,22 @@ namespace StarterKit.Database
         public RecordKit(string name, int amount) { Name = name; Amount = amount; }
     }
 
-    internal class DB
+    public class DB
     {
         private static readonly string FileDirectory = Path.Combine("BepInEx", "config", MyPluginInfo.PLUGIN_NAME);
         
-        public static bool EnabledKitCommand = true;
+        public static bool EnabledKitCommand { get; set; }
+
+        public static void Initialize()
+        {
+            EnabledKitCommand = true;
+            Plugin.Logger.LogWarning("PvPKit DB initialized.");
+        }
 
         internal static void LoadData()
         {
             if (!Directory.Exists(FileDirectory)) Directory.CreateDirectory(FileDirectory);
-            Plugin.Logger.LogWarning("DraculaKit DB initialized.");
+            Plugin.Logger.LogWarning("PvPKit DB initialized.");
         }
     }
 }
