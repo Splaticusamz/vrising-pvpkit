@@ -361,3 +361,16 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# V Rising mod-specific
+[Oo]utputs/
+[Ll]ibs/
+[Rr]efs/
+thunderstore/
+*.zip
+*.dll
+*.pdb
+*.xml
+
+# Keep specific DLLs if needed
+!libs/required/*.dll

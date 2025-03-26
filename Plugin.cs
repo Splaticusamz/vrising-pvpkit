@@ -38,7 +38,7 @@ namespace PvPKit
             _harmony.PatchAll(Assembly.GetExecutingAssembly());
             
             // Initialize database and config
-            MainConfig.ConfigInit();
+            MainConfig.Initialize();
             DB.LoadData();
             
             // Register commands
