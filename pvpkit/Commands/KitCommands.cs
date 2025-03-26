@@ -431,8 +431,8 @@ namespace StarterKit.Commands
                     if (added.Count > 0)
                     {
                         ctx.Reply($"<color=#ffffffff>Added Dracula Brute set to your inventory.</color>");
-                    }
-                    else
+                }
+                else
                     {
                         ctx.Reply($"<color=#ff0000>Failed to add Brute set. Please use .dumpitems for debug info.</color>");
                     }
