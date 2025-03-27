@@ -138,7 +138,9 @@ namespace PvPKit
                 int[] dropTableDataToClear = new int[]
                 {
                     -437611596, // Empty Glass Bottle
-                    -810738866  // Empty Waterskin
+                    -810738866, // Empty Waterskin
+                    -1749706632, // DT_Shared_Consume_GlassPotion_01
+                    971866957   // DT_Shared_Consume_WaterSkin_01
                 };
 
                 foreach (var dropTableHash in dropTableDataToClear)
@@ -222,6 +224,48 @@ namespace PvPKit
                 }
                 
                 Logger?.LogInfo($"Modified {modifiedCount} abilities");
+                
+                // Fix healing potion empty consumable issue
+                Logger?.LogInfo("Fixing healing potion empty consumable issue...");
+                int[] healingPotionAbilities = new int[]
+                {
+                    635603587, // AB_Consumable_HealingPotion_T02_Activate
+                };
+                
+                foreach (var abilityHash in healingPotionAbilities)
+                {
+                    var prefabGUID = new PrefabGUID(abilityHash);
+                    var prefabEntity = GetPrefabEntityByPrefabGUID(world, prefabGUID);
+                    
+                    if (!prefabEntity.Equals(Entity.Null))
+                    {
+                        if (world.EntityManager.HasBuffer<ProjectM.Shared.DropTableBuffer>(prefabEntity))
+                        {
+                            var dropTableBuffer = world.EntityManager.GetBuffer<ProjectM.Shared.DropTableBuffer>(prefabEntity);
+                            for (int i = 0; i < dropTableBuffer.Length; i++)
+                            {
+                                var dropTable = dropTableBuffer[i];
+                                // Change the DropTrigger to a different value that doesn't match DropFromTablesOnGameplayEvent
+                                if (dropTable.DropTrigger == ProjectM.Shared.DropTriggerType.OnSalvageDestroy)
+                                {
+                                    Logger?.LogInfo($"Fixing DropTrigger for healing potion ability {abilityHash}");
+                                    // Replace the drop table GUID with PrefabGUID.Empty instead of changing the trigger
+                                    dropTable.DropTableGuid = PrefabGUID.Empty;
+                                    dropTableBuffer[i] = dropTable;
+                                    anyModified = true;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Logger?.LogWarning($"Ability {abilityHash} doesn't have DropTableBuffer component");
+                        }
+                    }
+                    else
+                    {
+                        Logger?.LogWarning($"Couldn't find entity for ability hash {abilityHash}");
+                    }
+                }
                 
                 if (anyModified)
                 {
