@@ -26,23 +26,41 @@ namespace PvPKit.Utils
         {
             try
             {
-                // Since we can't directly access InventoryBuffer, let's use a simpler approach
-                // Find a slot from 0-34 (typical inventory range)
-                for (int slot = 0; slot < 35; slot++)
+                // Create an equip event entity for the specific item
+                var entity = EntityManager.CreateEntity(ComponentType.ReadWrite<FromCharacter>(), ComponentType.ReadWrite<EquipItemEvent>());
+                
+                // Get player character and user entity
+                PlayerCharacter playerchar = EntityManager.GetComponentData<PlayerCharacter>(playerEntity);
+                Entity userEntity = playerchar.UserEntity;
+                
+                // Set the character/user data
+                EntityManager.SetComponentData<FromCharacter>(entity, new() { User = userEntity, Character = playerEntity });
+                
+                // Get the inventory slot where the item is located
+                int inventorySlot = -1;
+                if (EntityManager.HasComponent<InventoryBuffer>(playerEntity))
                 {
-                    try
+                    var inventoryBuffer = EntityManager.GetBuffer<InventoryBuffer>(playerEntity);
+                    for (int i = 0; i < inventoryBuffer.Length; i++)
                     {
-                        // Try to equip item in each slot
-                        EquipEquipment(playerEntity, slot);
-                        Plugin.Logger.LogInfo($"Attempted to equip item in slot {slot}");
-                        // Exit after first attempt - if it works, great; if not, we'll continue with other items
-                        break;
+                        if (inventoryBuffer[i].ItemEntity._Entity == itemEntity)
+                        {
+                            inventorySlot = i;
+                            break;
+                        }
                     }
-                    catch (Exception slotEx)
-                    {
-                        // Just silently ignore individual slot errors
-                        continue;
-                    }
+                }
+                
+                // If we found the item's inventory slot, try to equip it
+                if (inventorySlot >= 0)
+                {
+                    // Set the equip data for this slot
+                    EntityManager.SetComponentData<EquipItemEvent>(entity, new() { SlotIndex = inventorySlot });
+                    Plugin.Logger.LogInfo($"Sent equip command for item in inventory slot {inventorySlot}");
+                }
+                else
+                {
+                    Plugin.Logger.LogWarning($"Could not find item in inventory to equip");
                 }
             }
             catch (Exception ex)

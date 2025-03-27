@@ -12,6 +12,70 @@ namespace PvPKit.Commands
 {
     internal class KitCommands
     {
+        // Cooldown tracking
+        private static Dictionary<ulong, DateTime> kitCooldowns = new Dictionary<ulong, DateTime>();
+        private static Dictionary<ulong, string> playerKits = new Dictionary<ulong, string>();
+        private const int KIT_COOLDOWN_SECONDS = 1; // Reduced for testing
+
+        // Helper to get player platform ID
+        private static ulong GetPlayerPlatformId(Entity playerEntity)
+        {
+            try
+            {
+                var userData = Helper.EntityManager.GetComponentData<ProjectM.Network.User>(
+                    Helper.EntityManager.GetComponentData<ProjectM.PlayerCharacter>(playerEntity).UserEntity
+                );
+                return userData.PlatformId;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Logger.LogError($"Error getting player platform ID: {ex.Message}");
+                return 0;
+            }
+        }
+
+        // Helper to reset kit tracking for a player
+        private static void ResetKitTracking(ulong platformId)
+        {
+            if (playerKits.ContainsKey(platformId))
+            {
+                playerKits.Remove(platformId);
+                Plugin.Logger.LogInfo($"Reset kit tracking for player {platformId}");
+            }
+        }
+
+        // Helper to unequip all armor
+        private static void UnequipArmor(Entity playerEntity)
+        {
+            try
+            {
+                // Unequip all equipment slots that might have armor
+                Plugin.Logger.LogInfo("Unequipping all armor pieces");
+                
+                // Unequip in this order: Chest, Legs, Hands, Feet
+                Helper.EquipEquipment(playerEntity, 3); // Chest
+                System.Threading.Thread.Sleep(100);
+                Helper.EquipEquipment(playerEntity, 4); // Legs
+                System.Threading.Thread.Sleep(100); 
+                Helper.EquipEquipment(playerEntity, 6); // Gloves
+                System.Threading.Thread.Sleep(100);
+                Helper.EquipEquipment(playerEntity, 5); // Boots
+                
+                Plugin.Logger.LogInfo("All armor pieces unequipped");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Logger.LogError($"Error unequipping armor: {ex.Message}");
+            }
+        }
+
+        // Helper to remove existing kit items
+        private static void RemoveExistingKitItems(Entity playerEntity)
+        {
+            // Just logging for now
+            Plugin.Logger.LogInfo("Removing existing kit items - skipped in simplified implementation");
+        }
+
         [Command("dumpitems", description: "Dumps item list to log", adminOnly: true)]
         public static void DumpItemsCommand(ChatCommandContext ctx)
         {
@@ -44,6 +108,13 @@ namespace PvPKit.Commands
                 Plugin.Logger.LogError($"Error dumping items: {ex.Message}");
                 ctx.Reply($"<color=#ff0000>Error: {ex.Message}</color>");
             }
+        }
+
+        [Command("pk", description: "Shows available kit options.", adminOnly: false)]
+        public static void ShowKitOptionsCommand(ChatCommandContext ctx)
+        {
+            ctx.Reply("<color=#ffffffff>Available kits: .pk warrior, .pk rogue, .pk brute, .pk sorcerer</color>");
+            ctx.Reply("<color=#ffffffff>For general weapons and equipment: .pvpkit</color>");
         }
 
         [Command("pvpkit", description: "Give basic weapons, consumables, and equipment to the player.", adminOnly: false)]
@@ -217,7 +288,7 @@ namespace PvPKit.Commands
             }
         }
 
-        [Command("pvpkit rogue", description: "Give Dracula Rogue armor set to the player.", adminOnly: false)]
+        [Command("pk rogue", description: "Give Dracula Rogue armor set to the player.", adminOnly: false)]
         public static void KitRogueCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -275,7 +346,7 @@ namespace PvPKit.Commands
             }
         }
 
-        [Command("pvpkit warrior", description: "Give Dracula Warrior armor set to the player.", adminOnly: false)]
+        [Command("pk warrior", description: "Give Dracula Warrior armor set to the player.", adminOnly: false)]
         public static void KitWarriorCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -333,7 +404,7 @@ namespace PvPKit.Commands
             }
         }
         
-        [Command("pvpkit sorcerer", description: "Give Dracula Scholar armor set to the player.", adminOnly: false)]
+        [Command("pk sorcerer", description: "Give Dracula Sorcerer armor set to the player.", adminOnly: false)]
         public static void KitSorcererCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
@@ -379,7 +450,7 @@ namespace PvPKit.Commands
                         ctx.Reply($"<color=#ff0000>Failed to add Sorcerer set. Please use .dumpitems for debug info.</color>");
                     }
                 }
-                catch (System.Exception ex)
+                catch (Exception ex)
                 {
                     Plugin.Logger.LogError($"Error giving Sorcerer kit: {ex.Message}");
                     ctx.Reply($"<color=#ff0000>Error giving Sorcerer kit: {ex.Message}</color>");
@@ -391,7 +462,7 @@ namespace PvPKit.Commands
             }
         }
         
-        [Command("pvpkit brute", description: "Give Dracula Brute armor set to the player.", adminOnly: false)]
+        [Command("pk brute", description: "Give Dracula Brute armor set to the player.", adminOnly: false)]
         public static void KitBruteCommand(ChatCommandContext ctx)
         {
             if (DB.EnabledKitCommand)
