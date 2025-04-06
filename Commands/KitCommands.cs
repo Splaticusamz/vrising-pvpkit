@@ -7,6 +7,7 @@ using Unity.Entities;
 using System;
 using ProjectM;
 using System.Linq;
+using ProjectM.Network;
 
 namespace PvPKit.Commands
 {
@@ -52,13 +53,10 @@ namespace PvPKit.Commands
                 // Unequip all equipment slots that might have armor
                 Plugin.Logger.LogInfo("Unequipping all armor pieces");
                 
-                // Unequip in this order: Chest, Legs, Hands, Feet
+                // Unequip in this order: Chest, Legs, Gloves, Boots
                 Helper.EquipEquipment(playerEntity, 3); // Chest
-                System.Threading.Thread.Sleep(100);
                 Helper.EquipEquipment(playerEntity, 4); // Legs
-                System.Threading.Thread.Sleep(100); 
                 Helper.EquipEquipment(playerEntity, 6); // Gloves
-                System.Threading.Thread.Sleep(100);
                 Helper.EquipEquipment(playerEntity, 5); // Boots
                 
                 Plugin.Logger.LogInfo("All armor pieces unequipped");
@@ -69,11 +67,190 @@ namespace PvPKit.Commands
             }
         }
 
+        // Get inventory index for a specific item entity
+        private static int GetInventoryIndex(Entity characterEntity, Entity itemEntity)
+        {
+            try
+            {
+                // Get inventory buffer directly from character entity
+                if (Helper.EntityManager.HasComponent<InventoryBuffer>(characterEntity))
+                {
+                    var inventoryBuffer = Helper.EntityManager.GetBuffer<InventoryBuffer>(characterEntity);
+                    
+                    // Walk the buffer to find the index where our item is
+                    for (var i = 0; i < inventoryBuffer.Length; i++)
+                    {
+                        Entity bufferItemEntity = inventoryBuffer[i].ItemEntity._Entity;
+                        if (bufferItemEntity == itemEntity)
+                        {
+                            return i;
+                        }
+                    }
+                }
+                return -1;
+            }
+            catch (Exception ex)
+            {
+                Plugin.Logger.LogError($"Error getting inventory index: {ex.Message}");
+                return -1;
+            }
+        }
+
+        // Directly equip an item using its entity reference
+        private static void EquipItem(Entity characterEntity, Entity itemEntity)
+        {
+            try
+            {
+                // Find slot index for the item
+                int slot = GetInventoryIndex(characterEntity, itemEntity);
+
+                if (slot == -1)
+                {
+                    Plugin.Logger.LogError("Couldn't find slot index for item to equip.");
+                    return;
+                }
+
+                // Create entity for equip event
+                Entity equipEntity = Helper.EntityManager.CreateEntity();
+                
+                // Get player character and user entity
+                PlayerCharacter playerChar = Helper.EntityManager.GetComponentData<PlayerCharacter>(characterEntity);
+                Entity userEntity = playerChar.UserEntity;
+                
+                // Add equip event component
+                Helper.EntityManager.AddComponentData(equipEntity, new EquipItemEvent
+                {
+                    SlotIndex = slot,
+                    IsCosmetic = false
+                });
+                
+                // Add character info
+                Helper.EntityManager.AddComponentData(equipEntity, new FromCharacter
+                {
+                    Character = characterEntity,
+                    User = userEntity
+                });
+                
+                Plugin.Logger.LogInfo($"Equipped item at slot {slot}");
+            }
+            catch (Exception ex)
+            {
+                Plugin.Logger.LogError($"Error equipping item: {ex.Message}");
+            }
+        }
+        
+        // Add and equip items in a single operation
+        private static void AddAndEquipItems(Entity characterEntity, Dictionary<PrefabGUID, int> items)
+        {
+            foreach (var item in items)
+            {
+                var itemGuid = item.Key;
+                var amount = item.Value;
+
+                try
+                {
+                    // Add item to inventory
+                    var response = Helper.serverGameManager.TryAddInventoryItem(characterEntity, itemGuid, amount);
+
+                    if (response.Success)
+                    {
+                        Plugin.Logger.LogInfo($"Item {itemGuid.GuidHash} added successfully. Equipping...");
+                        // Equip item if successfully added
+                        EquipItem(characterEntity, response.NewEntity);
+                    }
+                    else
+                    {
+                        Plugin.Logger.LogWarning($"Failed to add item with GUID {itemGuid}: {response.Result}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Plugin.Logger.LogError($"Error adding/equipping item {itemGuid}: {ex.Message}");
+                }
+            }
+        }
+        
+        // Remove existing kit items from inventory
+        private static void RemoveKitItemsFromInventory(Entity playerEntity)
+        {
+            try
+            {
+                // First unequip all armor pieces
+                UnequipArmor(playerEntity);
+                
+                // These are the item prefixes we're looking for in all kits
+                var kitItemPrefixes = new[]
+                {
+                    "Item_Boots_T09_Dracula_",
+                    "Item_Chest_T09_Dracula_",
+                    "Item_Gloves_T09_Dracula_",
+                    "Item_Legs_T09_Dracula_"
+                };
+                
+                // Only remove if we have access to the inventory buffer
+                if (Helper.EntityManager.HasComponent<InventoryBuffer>(playerEntity))
+                {
+                    var prefabSystem = Helper.Server.GetExistingSystemManaged<PrefabCollectionSystem>();
+                    var inventoryBuffer = Helper.EntityManager.GetBuffer<InventoryBuffer>(playerEntity);
+                    
+                    // Log kit item removal attempt
+                    Plugin.Logger.LogInfo($"Checking inventory for kit items to remove. Buffer length: {inventoryBuffer.Length}");
+                    
+                    // Store items to remove (can't modify while iterating)
+                    var itemsToRemove = new List<(Entity, string)>();
+                    
+                    // Check each inventory item
+                    for (int i = 0; i < inventoryBuffer.Length; i++)
+                    {
+                        var itemEntity = inventoryBuffer[i].ItemEntity._Entity;
+                        
+                        // Skip if null/invalid entity
+                        if (itemEntity == Entity.Null || !Helper.EntityManager.Exists(itemEntity))
+                            continue;
+                            
+                        // Get the prefab component to find out what item this is
+                        if (Helper.EntityManager.HasComponent<PrefabGUID>(itemEntity))
+                        {
+                            var prefabGUID = Helper.EntityManager.GetComponentData<PrefabGUID>(itemEntity);
+                            
+                            // Try to get the name of this prefab
+                            if (prefabSystem.PrefabGuidToNameDictionary.TryGetValue(prefabGUID, out string itemName))
+                            {
+                                // Check if it's a kit item
+                                foreach (var prefix in kitItemPrefixes)
+                                {
+                                    if (itemName.StartsWith(prefix))
+                                    {
+                                        // We found a kit item, add it to removal list
+                                        itemsToRemove.Add((itemEntity, itemName));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Now remove all identified kit items
+                    foreach (var item in itemsToRemove)
+                    {
+                        Helper.EntityManager.DestroyEntity(item.Item1);
+                        Plugin.Logger.LogInfo($"Removed kit item: {item.Item2}");
+                    }
+                    
+                    Plugin.Logger.LogInfo($"Removed {itemsToRemove.Count} kit items from inventory");
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Logger.LogError($"Error removing kit items: {ex.Message}");
+            }
+        }
+        
         // Helper to remove existing kit items
         private static void RemoveExistingKitItems(Entity playerEntity)
         {
-            // Just logging for now
-            Plugin.Logger.LogInfo("Removing existing kit items - skipped in simplified implementation");
+            // Remove kit items from inventory
+            RemoveKitItemsFromInventory(playerEntity);
         }
 
         [Command("dumpitems", description: "Dumps item list to log", adminOnly: true)]
@@ -296,43 +473,34 @@ namespace PvPKit.Commands
                 try
                 {
                     var playerEntity = ctx.Event.SenderCharacterEntity;
-                    var added = new List<string>();
+                    var platformId = GetPlayerPlatformId(playerEntity);
+                    
+                    // Check if player has this kit already
+                    if (playerKits.TryGetValue(platformId, out string currentKit) && currentKit == "rogue")
+                    {
+                        ctx.Reply($"<color=#ffffffff>You already have the Rogue set equipped.</color>");
+                        return;
+                    }
+                    
+                    // Remove existing kit items first
+                    RemoveExistingKitItems(playerEntity);
                     
                     // Add and equip the Rogue Set
                     Plugin.Logger.LogInfo("Adding and equipping Rogue armor set");
-                    var rogueSet = new Dictionary<string, PrefabGUID>
+                    var rogueSet = new Dictionary<PrefabGUID, int>
                     {
-                        { "Item_Boots_T09_Dracula_Rogue", new PrefabGUID(1855323424) },
-                        { "Item_Chest_T09_Dracula_Rogue", new PrefabGUID(933057100) },
-                        { "Item_Gloves_T09_Dracula_Rogue", new PrefabGUID(-1826382550) },
-                        { "Item_Legs_T09_Dracula_Rogue", new PrefabGUID(-345596442) }
+                        { new PrefabGUID(1855323424), 1 },  // Item_Boots_T09_Dracula_Rogue
+                        { new PrefabGUID(933057100), 1 },   // Item_Chest_T09_Dracula_Rogue
+                        { new PrefabGUID(-1826382550), 1 }, // Item_Gloves_T09_Dracula_Rogue
+                        { new PrefabGUID(-345596442), 1 }   // Item_Legs_T09_Dracula_Rogue
                     };
                     
-                    foreach (var item in rogueSet)
-                    {
-                        var result = Helper.AddItemToInventory(playerEntity, item.Value, 1);
-                        if (result != Entity.Null)
-                        {
-                            added.Add(item.Key);
-                            // Try to equip the item
-                            Helper.TryEquipItem(playerEntity, item.Value, result);
-                            Plugin.Logger.LogInfo($"Successfully added and equipped {item.Key}");
-                        }
-                        else
-                        {
-                            Plugin.Logger.LogWarning($"Failed to add {item.Key}");
-                        }
-                    }
+                    // Add and equip all items in one operation
+                    AddAndEquipItems(playerEntity, rogueSet);
                     
-                    // Final response to the player
-                    if (added.Count > 0)
-                    {
-                        ctx.Reply($"<color=#ffffffff>Added Dracula Rogue set to your inventory.</color>");
-                    }
-                    else
-                    {
-                        ctx.Reply($"<color=#ff0000>Failed to add Rogue set. Please use .dumpitems for debug info.</color>");
-                    }
+                    // Update player kit tracking
+                    playerKits[platformId] = "rogue";
+                    ctx.Reply($"<color=#ffffffff>Added Dracula Rogue set to your inventory and equipped it.</color>");
                 }
                 catch (System.Exception ex)
                 {
@@ -354,43 +522,34 @@ namespace PvPKit.Commands
                 try
                 {
                     var playerEntity = ctx.Event.SenderCharacterEntity;
-                    var added = new List<string>();
+                    var platformId = GetPlayerPlatformId(playerEntity);
+                    
+                    // Check if player has this kit already
+                    if (playerKits.TryGetValue(platformId, out string currentKit) && currentKit == "warrior")
+                    {
+                        ctx.Reply($"<color=#ffffffff>You already have the Warrior set equipped.</color>");
+                        return;
+                    }
+                    
+                    // Remove existing kit items first
+                    RemoveExistingKitItems(playerEntity);
                     
                     // Add and equip the Warrior Set
                     Plugin.Logger.LogInfo("Adding and equipping Warrior armor set");
-                    var warriorSet = new Dictionary<string, PrefabGUID>
+                    var warriorSet = new Dictionary<PrefabGUID, int>
                     {
-                        { "Item_Boots_T09_Dracula_Warrior", new PrefabGUID(-382349289) },
-                        { "Item_Chest_T09_Dracula_Warrior", new PrefabGUID(1392314162) },
-                        { "Item_Gloves_T09_Dracula_Warrior", new PrefabGUID(1982551454) },
-                        { "Item_Legs_T09_Dracula_Warrior", new PrefabGUID(205207385) }
+                        { new PrefabGUID(-382349289), 1 },  // Item_Boots_T09_Dracula_Warrior
+                        { new PrefabGUID(1392314162), 1 },  // Item_Chest_T09_Dracula_Warrior
+                        { new PrefabGUID(1982551454), 1 },  // Item_Gloves_T09_Dracula_Warrior
+                        { new PrefabGUID(205207385), 1 }    // Item_Legs_T09_Dracula_Warrior
                     };
                     
-                    foreach (var item in warriorSet)
-                    {
-                        var result = Helper.AddItemToInventory(playerEntity, item.Value, 1);
-                        if (result != Entity.Null)
-                        {
-                            added.Add(item.Key);
-                            // Try to equip the item
-                            Helper.TryEquipItem(playerEntity, item.Value, result);
-                            Plugin.Logger.LogInfo($"Successfully added and equipped {item.Key}");
-                        }
-                        else
-                        {
-                            Plugin.Logger.LogWarning($"Failed to add {item.Key}");
-                        }
-                    }
+                    // Add and equip all items in one operation
+                    AddAndEquipItems(playerEntity, warriorSet);
                     
-                    // Final response to the player
-                    if (added.Count > 0)
-                    {
-                        ctx.Reply($"<color=#ffffffff>Added Dracula Warrior set to your inventory.</color>");
-                    }
-                    else
-                    {
-                        ctx.Reply($"<color=#ff0000>Failed to add Warrior set. Please use .dumpitems for debug info.</color>");
-                    }
+                    // Update player kit tracking
+                    playerKits[platformId] = "warrior";
+                    ctx.Reply($"<color=#ffffffff>Added Dracula Warrior set to your inventory and equipped it.</color>");
                 }
                 catch (System.Exception ex)
                 {
@@ -412,43 +571,34 @@ namespace PvPKit.Commands
                 try
                 {
                     var playerEntity = ctx.Event.SenderCharacterEntity;
-                    var added = new List<string>();
+                    var platformId = GetPlayerPlatformId(playerEntity);
+                    
+                    // Check if player has this kit already
+                    if (playerKits.TryGetValue(platformId, out string currentKit) && currentKit == "sorcerer")
+                    {
+                        ctx.Reply($"<color=#ffffffff>You already have the Sorcerer set equipped.</color>");
+                        return;
+                    }
+                    
+                    // Remove existing kit items first
+                    RemoveExistingKitItems(playerEntity);
                     
                     // Add and equip the Scholar Set (Sorcerer)
                     Plugin.Logger.LogInfo("Adding and equipping Scholar armor set");
-                    var scholarSet = new Dictionary<string, PrefabGUID>
+                    var scholarSet = new Dictionary<PrefabGUID, int>
                     {
-                        { "Item_Boots_T09_Dracula_Scholar", new PrefabGUID(1531721602) },
-                        { "Item_Chest_T09_Dracula_Scholar", new PrefabGUID(114259912) },
-                        { "Item_Gloves_T09_Dracula_Scholar", new PrefabGUID(-1899539896) },
-                        { "Item_Legs_T09_Dracula_Scholar", new PrefabGUID(1592149279) }
+                        { new PrefabGUID(1531721602), 1 },  // Item_Boots_T09_Dracula_Scholar
+                        { new PrefabGUID(114259912), 1 },   // Item_Chest_T09_Dracula_Scholar
+                        { new PrefabGUID(-1899539896), 1 }, // Item_Gloves_T09_Dracula_Scholar
+                        { new PrefabGUID(1592149279), 1 }   // Item_Legs_T09_Dracula_Scholar
                     };
                     
-                    foreach (var item in scholarSet)
-                    {
-                        var result = Helper.AddItemToInventory(playerEntity, item.Value, 1);
-                        if (result != Entity.Null)
-                        {
-                            added.Add(item.Key);
-                            // Try to equip the item
-                            Helper.TryEquipItem(playerEntity, item.Value, result);
-                            Plugin.Logger.LogInfo($"Successfully added and equipped {item.Key}");
-                        }
-                        else
-                        {
-                            Plugin.Logger.LogWarning($"Failed to add {item.Key}");
-                        }
-                    }
+                    // Add and equip all items in one operation
+                    AddAndEquipItems(playerEntity, scholarSet);
                     
-                    // Final response to the player
-                    if (added.Count > 0)
-                    {
-                        ctx.Reply($"<color=#ffffffff>Added Dracula Sorcerer set to your inventory.</color>");
-                    }
-                    else
-                    {
-                        ctx.Reply($"<color=#ff0000>Failed to add Sorcerer set. Please use .dumpitems for debug info.</color>");
-                    }
+                    // Update player kit tracking
+                    playerKits[platformId] = "sorcerer";
+                    ctx.Reply($"<color=#ffffffff>Added Dracula Sorcerer set to your inventory and equipped it.</color>");
                 }
                 catch (Exception ex)
                 {
@@ -470,43 +620,34 @@ namespace PvPKit.Commands
                 try
                 {
                     var playerEntity = ctx.Event.SenderCharacterEntity;
-                    var added = new List<string>();
+                    var platformId = GetPlayerPlatformId(playerEntity);
+                    
+                    // Check if player has this kit already
+                    if (playerKits.TryGetValue(platformId, out string currentKit) && currentKit == "brute")
+                    {
+                        ctx.Reply($"<color=#ffffffff>You already have the Brute set equipped.</color>");
+                        return;
+                    }
+                    
+                    // Remove existing kit items first
+                    RemoveExistingKitItems(playerEntity);
                     
                     // Add and equip the Brute Set
                     Plugin.Logger.LogInfo("Adding and equipping Brute armor set");
-                    var bruteSet = new Dictionary<string, PrefabGUID>
+                    var bruteSet = new Dictionary<PrefabGUID, int>
                     {
-                        { "Item_Boots_T09_Dracula_Brute", new PrefabGUID(1646489863) },
-                        { "Item_Chest_T09_Dracula_Brute", new PrefabGUID(1033753207) },
-                        { "Item_Gloves_T09_Dracula_Brute", new PrefabGUID(1039083725) },
-                        { "Item_Legs_T09_Dracula_Brute", new PrefabGUID(993033515) }
+                        { new PrefabGUID(1646489863), 1 }, // Item_Boots_T09_Dracula_Brute
+                        { new PrefabGUID(1033753207), 1 }, // Item_Chest_T09_Dracula_Brute 
+                        { new PrefabGUID(1039083725), 1 }, // Item_Gloves_T09_Dracula_Brute
+                        { new PrefabGUID(993033515), 1 }   // Item_Legs_T09_Dracula_Brute
                     };
                     
-                    foreach (var item in bruteSet)
-                    {
-                        var result = Helper.AddItemToInventory(playerEntity, item.Value, 1);
-                        if (result != Entity.Null)
-                        {
-                            added.Add(item.Key);
-                            // Try to equip the item
-                            Helper.TryEquipItem(playerEntity, item.Value, result);
-                            Plugin.Logger.LogInfo($"Successfully added and equipped {item.Key}");
-                        }
-                        else
-                        {
-                            Plugin.Logger.LogWarning($"Failed to add {item.Key}");
-                        }
-                    }
+                    // Add and equip all items in one operation
+                    AddAndEquipItems(playerEntity, bruteSet);
                     
-                    // Final response to the player
-                    if (added.Count > 0)
-                    {
-                        ctx.Reply($"<color=#ffffffff>Added Dracula Brute set to your inventory.</color>");
-                    }
-                    else
-                    {
-                        ctx.Reply($"<color=#ff0000>Failed to add Brute set. Please use .dumpitems for debug info.</color>");
-                    }
+                    // Update player kit tracking
+                    playerKits[platformId] = "brute";
+                    ctx.Reply($"<color=#ffffffff>Added Dracula Brute set to your inventory and equipped it.</color>");
                 }
                 catch (System.Exception ex)
                 {

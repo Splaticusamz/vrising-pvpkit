@@ -1,8 +1,8 @@
 {
   "name": "PvPKit",
   "version_number": "0.1.0",
-  "website_url": "https://github.com/YourUsername/PvPKit",
-  "description": "A mod that gives the Dracula Set to any player who uses the .kit command",
+  "website_url": "https://github.com/Splaticusamz/vrising-pvpkit",
+  "description": "A mod that gives the a full PVP Set to any player who uses the .pvpkit command as well as any armor set by using .pk rogue/warrior/brute/sorcerer",
   "dependencies": [
     "BepInEx-BepInExPack-5.4.2100",
     "deca-Bloodstone-0.1.4"
